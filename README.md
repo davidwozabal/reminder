@@ -4,7 +4,7 @@ Android app for tracking daily activities with a calendar view, completion stati
 
 Co-developed by David Wozabal and Nancy Wozabal.
 
-**Current version:** v1.0.0
+**Current version:** v1.1.4
 
 ---
 
@@ -154,6 +154,12 @@ app/src/main/java/com/wozabal/reminder/
 
 | Version | Date | Changes |
 |---|---|---|
+| v1.1.4 | 2026-05-26 | Complete bugfix: rememberCoroutineScope + try-catch in all touch handlers, IO dispatcher for Room ops, fix for touch unresponsiveness after first click |
+| v1.1.3 | 2026-05-26 | Touch fix v2: IO dispatcher for Room suspend calls, withContext(Main) for state updates |
+| v1.1.2 | 2026-05-26 | Touch fix v1: SupervisorJob + CoroutineExceptionHandler |
+| v1.1.1 | 2026-05-26 | Comprehensive exception handling in all coroutine launch sites, global uncaught handler |
+| v1.1.0 | 2026-05-26 | Task management tab (bottom nav), createdAt field for activities, filtered stats from creation date onward |
+| v1.0.4 | 2026-05-26 | Fix crash: SecurityException on setExactAndAllowWhileIdle (Android 12+), fall back to inexact alarm |
 | v1.0.0 | 2026-05-26 | Initial build: Room DB, calendar (month/week views), activity CRUD, persistent notification with actions, escalating AlarmManager reminders, backup/restore |
 
 ---
