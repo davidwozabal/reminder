@@ -49,6 +49,16 @@ fun CalendarScreen(
     }
     val scope = rememberCoroutineScope()
 
+    // Add error-catching scope for all UI coroutines
+    val safeScope = remember {
+        kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main +
+            kotlinx.coroutines.CoroutineExceptionHandler { _, e ->
+                android.util.Log.e("CalendarScreen", "Coroutine exception", e)
+            }
+        )
+    }
+
     val activities by repo.getAllActivities().collectAsState(initial = emptyList())
     var tab by remember { mutableStateOf(0) } // 0 = Calendar, 1 = Manage Tasks
     var viewMode by remember { mutableStateOf("MONTH") }
@@ -117,7 +127,7 @@ fun CalendarScreen(
                 completionsInRange = completionsInRange,
                 onDayClick = { showDayDetail = it },
                 onActivityToggle = { activityId, date, currentStatus ->
-                    scope.launch {
+                    safeScope.launch {
                         if (currentStatus == null) {
                             repo.markActivity(activityId, date, "DONE")
                         } else if (currentStatus == "DONE") {
@@ -160,7 +170,7 @@ fun CalendarScreen(
             activity = editingActivity,
             onDismiss = { showEditor = false; editingActivity = null },
             onSave = { activity ->
-                scope.launch {
+                safeScope.launch {
                     if (activity.id == 0L) {
                         repo.insertActivity(activity)
                     } else {
@@ -172,7 +182,7 @@ fun CalendarScreen(
             },
             onDelete = if (editingActivity != null) {
                 { activity ->
-                    scope.launch { repo.deleteActivity(activity) }
+                    safeScope.launch { repo.deleteActivity(activity) }
                     showEditor = false
                     editingActivity = null
                 }
@@ -187,7 +197,7 @@ fun CalendarScreen(
             activities = activities,
             completionsInRange = completionsInRange,
             onToggle = { activityId, date, currentStatus ->
-                scope.launch {
+                safeScope.launch {
                     if (currentStatus == null) {
                         repo.markActivity(activityId, date, "DONE")
                     } else if (currentStatus == "DONE") {
