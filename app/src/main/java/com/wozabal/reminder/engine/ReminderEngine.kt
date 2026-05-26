@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.wozabal.reminder.data.ActivityEntity
 import com.wozabal.reminder.service.EscalationReceiver
 import java.time.LocalDate
@@ -57,9 +58,16 @@ object ReminderEngine {
 
             val triggerMs = startTime.toInstant().toEpochMilli()
             if (triggerMs > System.currentTimeMillis()) {
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent
-                )
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent
+                    )
+                } catch (e: SecurityException) {
+                    android.util.Log.w("ReminderEngine", "No exact alarm permission (scheduleDailyReminders), using inexact", e)
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent
+                    )
+                }
             }
         }
     }
@@ -96,9 +104,16 @@ object ReminderEngine {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP, nextReminder.toInstant().toEpochMilli(), pendingIntent
-        )
+        try {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, nextReminder.toInstant().toEpochMilli(), pendingIntent
+            )
+        } catch (e: SecurityException) {
+            android.util.Log.w("ReminderEngine", "No exact alarm permission (scheduleNextEscalation), using inexact", e)
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, nextReminder.toInstant().toEpochMilli(), pendingIntent
+            )
+        }
     }
 
     /**
@@ -134,8 +149,15 @@ object ReminderEngine {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP, midnight.toInstant().toEpochMilli(), pendingIntent
-        )
+        try {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, midnight.toInstant().toEpochMilli(), pendingIntent
+            )
+        } catch (e: SecurityException) {
+            android.util.Log.w("ReminderEngine", "No exact alarm permission, using inexact", e)
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, midnight.toInstant().toEpochMilli(), pendingIntent
+            )
+        }
     }
 }
