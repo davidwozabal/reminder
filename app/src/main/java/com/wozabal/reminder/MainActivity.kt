@@ -85,14 +85,20 @@ class MainActivity : ComponentActivity() {
     private fun startReminderService() {
         val db = ReminderDatabase.getInstance(this)
         val repo = com.wozabal.reminder.data.ReminderRepository(db, this)
-        CoroutineScope(Dispatchers.IO).launch {
-            val today = LocalDate.now()
-            val activities = repo.getActiveActivitiesForDate(today)
-            if (activities.isNotEmpty()) {
-                ReminderEngine.scheduleDailyReminders(this@MainActivity, activities)
-                ReminderForegroundService.start(this@MainActivity)
+        CoroutineScope(Dispatchers.IO + kotlinx.coroutines.CoroutineExceptionHandler { _, throwable ->
+            android.util.Log.e("ReminderApp", "Uncaught exception in startReminderService", throwable)
+        }).launch {
+            try {
+                val today = LocalDate.now()
+                val activities = repo.getActiveActivitiesForDate(today)
+                if (activities.isNotEmpty()) {
+                    ReminderEngine.scheduleDailyReminders(this@MainActivity, activities)
+                    ReminderForegroundService.start(this@MainActivity)
+                }
+                ReminderEngine.scheduleMidnightCleanup(this@MainActivity)
+            } catch (e: Exception) {
+                android.util.Log.e("ReminderApp", "Failed to start reminder service", e)
             }
-            ReminderEngine.scheduleMidnightCleanup(this@MainActivity)
         }
     }
 }

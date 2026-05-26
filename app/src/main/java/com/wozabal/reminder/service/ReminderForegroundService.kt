@@ -14,6 +14,7 @@ import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.wozabal.reminder.MainActivity
 import com.wozabal.reminder.R
@@ -96,23 +97,28 @@ class ReminderForegroundService : Service() {
     }
 
     private suspend fun updateNotification() {
-        val today = java.time.LocalDate.now().toString()
-        val db = ReminderDatabase.getInstance(this)
-        val repo = com.wozabal.reminder.data.ReminderRepository(db, this)
-        val activities = repo.getActiveActivitiesForDate(java.time.LocalDate.now())
-        val completions = repo.getCompletionsForDate(today)
+        try {
+            val today = java.time.LocalDate.now().toString()
+            val db = ReminderDatabase.getInstance(this)
+            val repo = com.wozabal.reminder.data.ReminderRepository(db, this)
+            val activities = repo.getActiveActivitiesForDate(java.time.LocalDate.now())
+            val completions = repo.getCompletionsForDate(today)
 
-        val pendingActivities = activities.filter { activity ->
-            completions.none { it.activityId == activity.id }
-        }
+            val pendingActivities = activities.filter { activity ->
+                completions.none { it.activityId == activity.id }
+            }
 
-        if (pendingActivities.isEmpty()) {
+            if (pendingActivities.isEmpty()) {
+                stopSelf()
+                return
+            }
+
+            val notification = buildNotification(pendingActivities, today)
+            startForeground(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            android.util.Log.e("ForegroundService", "Failed to update notification", e)
             stopSelf()
-            return
         }
-
-        val notification = buildNotification(pendingActivities, today)
-        startForeground(NOTIFICATION_ID, notification)
     }
 
     private fun buildNotification(activities: List<ActivityEntity>, date: String): Notification {
