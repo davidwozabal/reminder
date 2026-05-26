@@ -24,7 +24,9 @@ import com.wozabal.reminder.data.CompletionEntity
 import com.wozabal.reminder.data.ReminderDatabase
 import com.wozabal.reminder.data.ReminderRepository
 import com.wozabal.reminder.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -47,17 +49,10 @@ fun CalendarScreen(
             throw e
         }
     }
-    val safeScope = remember {
-        kotlinx.coroutines.CoroutineScope(
-            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main +
-            kotlinx.coroutines.CoroutineExceptionHandler { _, e ->
-                android.util.Log.e("CalendarScreen", "Coroutine exception", e)
-            }
-        )
-    }
+    val scope = rememberCoroutineScope()
 
     val activities by repo.getAllActivities().collectAsState(initial = emptyList())
-    var tab by remember { mutableStateOf(0) } // 0 = Calendar, 1 = Manage Tasks
+    var tab by remember { mutableStateOf(0) }
     var viewMode by remember { mutableStateOf("MONTH") }
     var currentDate by remember { mutableStateOf(LocalDate.now()) }
     var completionsInRange by remember { mutableStateOf<List<CompletionEntity>>(emptyList()) }
@@ -78,6 +73,39 @@ fun CalendarScreen(
         } catch (e: Exception) {
             android.util.Log.e("CalendarScreen", "Load completions failed", e)
             loadError = e.message ?: "Unknown error"
+        }
+    }
+
+    fun refreshCompletions() {
+        scope.launch {
+            try {
+                val range = if (viewMode == "MONTH") {
+                    val ym = YearMonth.from(currentDate)
+                    ym.atDay(1) to ym.atEndOfMonth()
+                } else {
+                    currentDate.with(DayOfWeek.MONDAY).let { it to it.plusDays(6) }
+                }
+                completionsInRange = repo.getCompletionsForRange(range.first.toString(), range.second.toString())
+            } catch (e: Exception) {
+                android.util.Log.e("CalendarScreen", "refresh completions failed", e)
+            }
+        }
+    }
+
+    fun doToggle(activityId: Long, date: String, currentStatus: String?) {
+        scope.launch {
+            try {
+                if (currentStatus == null) {
+                    repo.markActivity(activityId, date, "DONE")
+                } else if (currentStatus == "DONE") {
+                    repo.markActivity(activityId, date, "MISSED")
+                } else {
+                    repo.unmarkActivity(activityId, date)
+                }
+                refreshCompletions()
+            } catch (e: Exception) {
+                android.util.Log.e("CalendarScreen", "toggle failed", e)
+            }
         }
     }
 
@@ -113,54 +141,26 @@ fun CalendarScreen(
             }
         }
     ) { padding ->
-        if (tab == 0) {
-            CalendarTab(
-                modifier = Modifier.padding(padding),
-                viewMode = viewMode,
-                onToggleViewMode = { viewMode = it },
-                currentDate = currentDate,
-                onNavigate = { currentDate = it },
-                activities = activities,
-                completionsInRange = completionsInRange,
-                onDayClick = { showDayDetail = it },
-                onActivityToggle = { activityId, date, currentStatus ->
-                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                        if (currentStatus == null) {
-                            repo.markActivity(activityId, date, "DONE")
-                        } else if (currentStatus == "DONE") {
-                            repo.markActivity(activityId, date, "MISSED")
-                        } else {
-                            repo.unmarkActivity(activityId, date)
-                        }
-                        val range = if (viewMode == "MONTH") {
-                            YearMonth.from(currentDate).atDay(1) to YearMonth.from(currentDate).atEndOfMonth()
-                        } else {
-                            currentDate.with(DayOfWeek.MONDAY).let { it to it.plusDays(6) }
-                        }
-                        val newCompletions = repo.getCompletionsForRange(range.first.toString(), range.second.toString())
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                            completionsInRange = newCompletions
-                        }
-                    }
-                },
-                onAddActivity = {
-                    editingActivity = null
-                    showEditor = true
-                }
-            )
-        } else {
-            ManageTasksTab(
-                modifier = Modifier.padding(padding),
-                activities = activities,
-                onEdit = { activity ->
-                    editingActivity = activity
-                    showEditor = true
-                },
-                onAdd = {
-                    editingActivity = null
-                    showEditor = true
-                }
-            )
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (tab == 0) {
+                CalendarTab(
+                    viewMode = viewMode,
+                    onToggleViewMode = { viewMode = it },
+                    currentDate = currentDate,
+                    onNavigate = { currentDate = it },
+                    activities = activities,
+                    completionsInRange = completionsInRange,
+                    onDayClick = { showDayDetail = it },
+                    onActivityToggle = { activityId, date, status -> doToggle(activityId, date, status) },
+                    onAddActivity = { editingActivity = null; showEditor = true }
+                )
+            } else {
+                ManageTasksTab(
+                    activities = activities,
+                    onEdit = { editingActivity = it; showEditor = true },
+                    onAdd = { editingActivity = null; showEditor = true }
+                )
+            }
         }
     }
 
@@ -170,11 +170,15 @@ fun CalendarScreen(
             activity = editingActivity,
             onDismiss = { showEditor = false; editingActivity = null },
             onSave = { activity ->
-                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    if (activity.id == 0L) {
-                        repo.insertActivity(activity)
-                    } else {
-                        repo.updateActivity(activity)
+                scope.launch {
+                    try {
+                        if (activity.id == 0L) {
+                            repo.insertActivity(activity)
+                        } else {
+                            repo.updateActivity(activity)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("CalendarScreen", "save failed", e)
                     }
                 }
                 showEditor = false
@@ -182,7 +186,9 @@ fun CalendarScreen(
             },
             onDelete = if (editingActivity != null) {
                 { activity ->
-                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { repo.deleteActivity(activity) }
+                    scope.launch {
+                        try { repo.deleteActivity(activity) } catch (e: Exception) { android.util.Log.e("CalendarScreen", "delete failed", e) }
+                    }
                     showEditor = false
                     editingActivity = null
                 }
@@ -196,28 +202,7 @@ fun CalendarScreen(
             date = day,
             activities = activities,
             completionsInRange = completionsInRange,
-            onToggle = { activityId, date, currentStatus ->
-                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    if (currentStatus == null) {
-                        repo.markActivity(activityId, date, "DONE")
-                    } else if (currentStatus == "DONE") {
-                        repo.markActivity(activityId, date, "MISSED")
-                    } else {
-                        repo.unmarkActivity(activityId, date)
-                    }
-                    val range = if (viewMode == "MONTH") {
-                        YearMonth.from(currentDate).atDay(1) to YearMonth.from(currentDate).atEndOfMonth()
-                    } else {
-                        currentDate.with(DayOfWeek.MONDAY).let { it to it.plusDays(6) }
-                    }
-                    val newCompletions = repo.getCompletionsForRange(
-                        range.first.toString(), range.second.toString()
-                    )
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        completionsInRange = newCompletions
-                    }
-                }
-            },
+            onToggle = { activityId, date, status -> doToggle(activityId, date, status) },
             onDismiss = { showDayDetail = null },
             onEditActivity = { activity ->
                 editingActivity = activity
@@ -232,7 +217,6 @@ fun CalendarScreen(
 
 @Composable
 fun CalendarTab(
-    modifier: Modifier = Modifier,
     viewMode: String,
     onToggleViewMode: (String) -> Unit,
     currentDate: LocalDate,
@@ -243,28 +227,27 @@ fun CalendarTab(
     onActivityToggle: (Long, String, String?) -> Unit,
     onAddActivity: () -> Unit
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()) {
         ViewModeToggle(viewMode, onToggleViewMode)
-
         NavigationHeader(currentDate, viewMode, onNavigate)
 
-        if (viewMode == "MONTH") {
-            CalendarMonthView(
-                currentDate = currentDate,
-                activities = activities,
-                completionsInRange = completionsInRange,
-                onDayClick = onDayClick
-            )
-        } else {
-            CalendarWeekView(
-                currentDate = currentDate,
-                activities = activities,
-                completionsInRange = completionsInRange,
-                onActivityToggle = onActivityToggle
-            )
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            if (viewMode == "MONTH") {
+                CalendarMonthView(
+                    currentDate = currentDate,
+                    activities = activities,
+                    completionsInRange = completionsInRange,
+                    onDayClick = onDayClick
+                )
+            } else {
+                CalendarWeekView(
+                    currentDate = currentDate,
+                    activities = activities,
+                    completionsInRange = completionsInRange,
+                    onActivityToggle = onActivityToggle
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         StatsPanel(
             activities = activities,
@@ -273,14 +256,9 @@ fun CalendarTab(
             viewMode = viewMode
         )
 
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Add button
         Button(
             onClick = onAddActivity,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Primary)
         ) {
             Text("+ Add Activity", color = OnPrimary)
@@ -292,12 +270,11 @@ fun CalendarTab(
 
 @Composable
 fun ManageTasksTab(
-    modifier: Modifier = Modifier,
     activities: List<ActivityEntity>,
     onEdit: (ActivityEntity) -> Unit,
     onAdd: () -> Unit
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()) {
         Text(
             text = "Manage Tasks",
             fontSize = 18.sp,
@@ -307,35 +284,25 @@ fun ManageTasksTab(
 
         if (activities.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
+                modifier = Modifier.fillMaxWidth().weight(1f),
                 contentAlignment = Alignment.Center
             ) {
                 Text("No tasks yet. Add one below!", color = Color.Gray, fontSize = 16.sp)
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(activities) { activity ->
-                    ActivityCard(
-                        activity = activity,
-                        onClick = { onEdit(activity) }
-                    )
+                items(activities, key = { it.id }) { activity ->
+                    ActivityCard(activity = activity, onClick = { onEdit(activity) })
                 }
             }
         }
 
         Button(
             onClick = onAdd,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Primary)
         ) {
             Text("+ Add Activity", color = OnPrimary)
@@ -344,50 +311,28 @@ fun ManageTasksTab(
 }
 
 @Composable
-fun ActivityCard(
-    activity: ActivityEntity,
-    onClick: () -> Unit
-) {
+fun ActivityCard(activity: ActivityEntity, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = if (activity.enabled) Color.White else Color(0xFFF0F0F0)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Status dot
             Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(CircleShape)
+                modifier = Modifier.size(12.dp).clip(CircleShape)
                     .background(if (activity.enabled) DoneGreen else Color.Gray)
             )
-
             Spacer(modifier = Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = activity.name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = buildActivityInfo(activity),
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
+                Text(activity.name, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(buildActivityInfo(activity), fontSize = 12.sp, color = Color.Gray)
             }
-
             Text("›", fontSize = 20.sp, color = Color.Gray)
         }
     }
@@ -414,9 +359,7 @@ private fun buildActivityInfo(activity: ActivityEntity): String {
 @Composable
 fun ViewModeToggle(current: String, onToggle: (String) -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.Center
     ) {
         val tabs = listOf("MONTH" to "Month", "WEEK" to "Week")
@@ -442,9 +385,7 @@ fun ViewModeToggle(current: String, onToggle: (String) -> Unit) {
 @Composable
 fun NavigationHeader(currentDate: LocalDate, viewMode: String, onNavigate: (LocalDate) -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -461,8 +402,7 @@ fun NavigationHeader(currentDate: LocalDate, viewMode: String, onNavigate: (Loca
                 val fmt = DateTimeFormatter.ofPattern("MMM d")
                 "${weekStart.format(fmt)} – ${weekEnd.format(fmt)}"
             },
-            fontWeight = FontWeight.Bold,
-            fontSize = 16.sp
+            fontWeight = FontWeight.Bold, fontSize = 16.sp
         )
 
         TextButton(onClick = {
