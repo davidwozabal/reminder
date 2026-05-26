@@ -41,7 +41,7 @@ fun CalendarWeekView(
             val isToday = date == today
             val isPast = date.isBefore(today)
             val isFuture = date.isAfter(today)
-            val dayActivities = activities.filter { isActiveOnDate(it, date) }
+            val dayActivities = activities.filter { isActiveOnDate(it, date) && !isBeforeCreated(it, date) }
             val dayCompletions = completionsInRange.filter { it.date == date.toString() }
 
             val bgColor = when {
@@ -122,5 +122,14 @@ private fun isActiveOnDate(activity: ActivityEntity, date: LocalDate): Boolean {
             (activity.recurrenceDays and dayBit) != 0
         }
         else -> false
+    }
+}
+
+private fun isBeforeCreated(activity: ActivityEntity, date: LocalDate): Boolean {
+    if (activity.createdAt.isEmpty()) return false
+    return try {
+        date.isBefore(java.time.LocalDate.parse(activity.createdAt))
+    } catch (_: Exception) {
+        false
     }
 }

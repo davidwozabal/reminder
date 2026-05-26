@@ -11,5 +11,6 @@ data class ActivityEntity(
     val dueMinute: Int,      // 0–59
     val recurrenceType: String,  // "DAILY" or "WEEKLY"
     val recurrenceDays: Int,     // bitmask: 1=Mon 2=Tue 4=Wed 8=Thu 16=Fri 32=Sat 64=Sun
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val createdAt: String = ""   // yyyy-MM-dd — first day this activity exists
 )

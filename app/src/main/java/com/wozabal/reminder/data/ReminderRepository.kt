@@ -23,7 +23,8 @@ data class BackupActivity(
     val dueMinute: Int,
     val recurrenceType: String,
     val recurrenceDays: Int,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val createdAt: String = ""
 )
 
 @Serializable
@@ -130,7 +131,8 @@ class ReminderRepository(private val db: ReminderDatabase, private val context: 
                     activityDao.insert(ActivityEntity(
                         id = a.id, name = a.name, dueHour = a.dueHour,
                         dueMinute = a.dueMinute, recurrenceType = a.recurrenceType,
-                        recurrenceDays = a.recurrenceDays, enabled = a.enabled
+                        recurrenceDays = a.recurrenceDays, enabled = a.enabled,
+                        createdAt = a.createdAt
                     ))
                 }
                 for (c in data.completions) {

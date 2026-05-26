@@ -182,7 +182,8 @@ fun ActivityEditorDialog(
                                             dueMinute = dueMinute,
                                             recurrenceType = recurrenceType,
                                             recurrenceDays = if (recurrenceType == "DAILY") 0x7F else recurrenceDays,
-                                            enabled = enabled
+                                            enabled = enabled,
+                                            createdAt = activity?.createdAt ?: java.time.LocalDate.now().toString()
                                         )
                                     )
                                 }

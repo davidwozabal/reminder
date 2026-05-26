@@ -62,7 +62,7 @@ fun StatsPanel(
             val totalDays = activityCompletions.size
 
             val totalPossible = (range.first.datesUntil(endDate.plusDays(1)))
-                .filter { isActiveOnDate(activity, it) }
+                .filter { isActiveOnDate(activity, it) && !isBeforeCreated(activity, it) }
                 .count()
                 .toInt()
 
@@ -117,6 +117,15 @@ private fun isActiveOnDate(activity: ActivityEntity, date: LocalDate): Boolean {
             (activity.recurrenceDays and dayBit) != 0
         }
         else -> false
+    }
+}
+
+private fun isBeforeCreated(activity: ActivityEntity, date: LocalDate): Boolean {
+    if (activity.createdAt.isEmpty()) return false
+    return try {
+        date.isBefore(java.time.LocalDate.parse(activity.createdAt))
+    } catch (_: Exception) {
+        false
     }
 }
 

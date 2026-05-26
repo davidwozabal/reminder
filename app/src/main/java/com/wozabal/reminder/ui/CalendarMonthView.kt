@@ -42,7 +42,7 @@ fun CalendarMonthView(
     val activeCounts = remember(activities, currentDate) {
         (1..daysInMonth).map { day ->
             val date = ym.atDay(day)
-            activities.count { isActiveOnDate(it, date) }
+            activities.count { isActiveOnDate(it, date) && !isBeforeCreated(it, date) }
         }
     }
 
@@ -160,5 +160,14 @@ private fun isActiveOnDate(activity: ActivityEntity, date: LocalDate): Boolean {
             (activity.recurrenceDays and dayBit) != 0
         }
         else -> false
+    }
+}
+
+private fun isBeforeCreated(activity: ActivityEntity, date: LocalDate): Boolean {
+    if (activity.createdAt.isEmpty()) return false
+    return try {
+        date.isBefore(java.time.LocalDate.parse(activity.createdAt))
+    } catch (_: Exception) {
+        false
     }
 }
