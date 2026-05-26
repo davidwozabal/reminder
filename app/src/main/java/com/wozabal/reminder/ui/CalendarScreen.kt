@@ -47,9 +47,6 @@ fun CalendarScreen(
             throw e
         }
     }
-    val scope = rememberCoroutineScope()
-
-    // Add error-catching scope for all UI coroutines
     val safeScope = remember {
         kotlinx.coroutines.CoroutineScope(
             kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main +
@@ -127,7 +124,7 @@ fun CalendarScreen(
                 completionsInRange = completionsInRange,
                 onDayClick = { showDayDetail = it },
                 onActivityToggle = { activityId, date, currentStatus ->
-                    safeScope.launch {
+                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                         if (currentStatus == null) {
                             repo.markActivity(activityId, date, "DONE")
                         } else if (currentStatus == "DONE") {
@@ -140,7 +137,10 @@ fun CalendarScreen(
                         } else {
                             currentDate.with(DayOfWeek.MONDAY).let { it to it.plusDays(6) }
                         }
-                        completionsInRange = repo.getCompletionsForRange(range.first.toString(), range.second.toString())
+                        val newCompletions = repo.getCompletionsForRange(range.first.toString(), range.second.toString())
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            completionsInRange = newCompletions
+                        }
                     }
                 },
                 onAddActivity = {
@@ -170,7 +170,7 @@ fun CalendarScreen(
             activity = editingActivity,
             onDismiss = { showEditor = false; editingActivity = null },
             onSave = { activity ->
-                safeScope.launch {
+                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     if (activity.id == 0L) {
                         repo.insertActivity(activity)
                     } else {
@@ -182,7 +182,7 @@ fun CalendarScreen(
             },
             onDelete = if (editingActivity != null) {
                 { activity ->
-                    safeScope.launch { repo.deleteActivity(activity) }
+                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { repo.deleteActivity(activity) }
                     showEditor = false
                     editingActivity = null
                 }
@@ -197,7 +197,7 @@ fun CalendarScreen(
             activities = activities,
             completionsInRange = completionsInRange,
             onToggle = { activityId, date, currentStatus ->
-                safeScope.launch {
+                kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     if (currentStatus == null) {
                         repo.markActivity(activityId, date, "DONE")
                     } else if (currentStatus == "DONE") {
@@ -210,9 +210,12 @@ fun CalendarScreen(
                     } else {
                         currentDate.with(DayOfWeek.MONDAY).let { it to it.plusDays(6) }
                     }
-                    completionsInRange = repo.getCompletionsForRange(
+                    val newCompletions = repo.getCompletionsForRange(
                         range.first.toString(), range.second.toString()
                     )
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        completionsInRange = newCompletions
+                    }
                 }
             },
             onDismiss = { showDayDetail = null },
