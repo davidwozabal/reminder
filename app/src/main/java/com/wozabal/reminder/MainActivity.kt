@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.wozabal.reminder.data.ReminderDatabase
@@ -33,18 +34,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val db = try {
-            ReminderDatabase.getInstance(this)
+        var db: ReminderDatabase? = null
+        try {
+            db = ReminderDatabase.getInstance(this)
         } catch (e: Exception) {
             e.printStackTrace()
+            android.util.Log.e("ReminderApp", "Database init failed", e)
             return
         }
+
+        val database = db  // Final reference for use in lambda
 
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     CalendarScreen(
-                        db = db,
+                        db = database,
                         onRequestNotificationPermission = { requestNotificationPermission() }
                     )
                 }

@@ -39,7 +39,14 @@ fun CalendarScreen(
     onRequestNotificationPermission: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val repo = remember { ReminderRepository(db, context) }
+    val repo = remember { 
+        try {
+            ReminderRepository(db, context)
+        } catch (e: Exception) {
+            android.util.Log.e("ReminderRepository", "Init failed", e)
+            throw e
+        }
+    }
     val scope = rememberCoroutineScope()
 
     val activities by repo.getAllActivities().collectAsState(initial = emptyList())
@@ -49,20 +56,27 @@ fun CalendarScreen(
     // Completions for visible range
     var completionsInRange by remember { mutableStateOf<List<CompletionEntity>>(emptyList()) }
     var selectedDay by remember { mutableStateOf<LocalDate?>(null) }
+    var loadError by remember { mutableStateOf<String?>(null) }
 
     // Reload completions when range or activities change
     LaunchedEffect(currentDate, viewMode, activities) {
-        val range = if (viewMode == "MONTH") {
-            val ym = YearMonth.from(currentDate)
-            val start = ym.atDay(1)
-            val end = ym.atEndOfMonth()
-            start to end
-        } else {
-            val weekStart = currentDate.with(DayOfWeek.MONDAY)
-            val weekEnd = weekStart.plusDays(6)
-            weekStart to weekEnd
+        try {
+            val range = if (viewMode == "MONTH") {
+                val ym = YearMonth.from(currentDate)
+                val start = ym.atDay(1)
+                val end = ym.atEndOfMonth()
+                start to end
+            } else {
+                val weekStart = currentDate.with(DayOfWeek.MONDAY)
+                val weekEnd = weekStart.plusDays(6)
+                weekStart to weekEnd
+            }
+            completionsInRange = repo.getCompletionsForRange(range.first.toString(), range.second.toString())
+            loadError = null
+        } catch (e: Exception) {
+            android.util.Log.e("CalendarScreen", "Load completions failed", e)
+            loadError = e.message ?: "Unknown error"
         }
-        completionsInRange = repo.getCompletionsForRange(range.first.toString(), range.second.toString())
     }
 
     // Show activity editor dialog
