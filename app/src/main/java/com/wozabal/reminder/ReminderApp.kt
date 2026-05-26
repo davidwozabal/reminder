@@ -11,9 +11,13 @@ class ReminderApp : Application() {
 
         // Restore data from backup if DB is empty (survives reinstall)
         CoroutineScope(Dispatchers.IO).launch {
-            val db = com.wozabal.reminder.data.ReminderDatabase.getInstance(this@ReminderApp)
-            val repo = com.wozabal.reminder.data.ReminderRepository(db, this@ReminderApp)
-            repo.restoreFromBackupIfNeeded()
+            try {
+                val db = com.wozabal.reminder.data.ReminderDatabase.getInstance(this@ReminderApp)
+                val repo = com.wozabal.reminder.data.ReminderRepository(db, this@ReminderApp)
+                repo.restoreFromBackupIfNeeded()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 }

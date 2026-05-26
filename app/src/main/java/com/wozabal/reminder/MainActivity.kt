@@ -33,11 +33,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val db = try {
+            ReminderDatabase.getInstance(this)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return
+        }
+
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     CalendarScreen(
-                        db = ReminderDatabase.getInstance(this),
+                        db = db,
                         onRequestNotificationPermission = { requestNotificationPermission() }
                     )
                 }

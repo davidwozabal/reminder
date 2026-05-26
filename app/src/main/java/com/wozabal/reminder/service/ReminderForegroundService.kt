@@ -8,7 +8,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -18,6 +20,9 @@ import com.wozabal.reminder.R
 import com.wozabal.reminder.data.ActivityEntity
 import com.wozabal.reminder.data.CompletionEntity
 import com.wozabal.reminder.data.ReminderDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 class ReminderForegroundService : Service() {
     companion object {
@@ -55,27 +60,36 @@ class ReminderForegroundService : Service() {
             val activityId = intent.getLongExtra(EXTRA_ACTIVITY_ID, -1)
             val date = intent.getStringExtra(EXTRA_DATE) ?: return START_STICKY
             if (activityId >= 0) {
-                kotlinx.coroutines.runBlocking {
-                    markActivity(activityId, date, "DONE")
+                Handler(Looper.getMainLooper()).post {
+                    GlobalScope.launch(Dispatchers.IO) {
+                        markActivity(activityId, date, "DONE")
+                    }
                 }
             }
         } else if (intent?.action == ACTION_MARK_MISSED) {
             val activityId = intent.getLongExtra(EXTRA_ACTIVITY_ID, -1)
             val date = intent.getStringExtra(EXTRA_DATE) ?: return START_STICKY
             if (activityId >= 0) {
-                kotlinx.coroutines.runBlocking {
-                    markActivity(activityId, date, "MISSED")
+                Handler(Looper.getMainLooper()).post {
+                    GlobalScope.launch(Dispatchers.IO) {
+                        markActivity(activityId, date, "MISSED")
+                    }
                 }
             }
         } else if (intent?.action == ACTION_DISMISS_ALL) {
-            kotlinx.coroutines.runBlocking {
-                markAllPendingAsMissed()
+            val date = intent?.getStringExtra(EXTRA_DATE) ?: return START_STICKY
+            Handler(Looper.getMainLooper()).post {
+                GlobalScope.launch(Dispatchers.IO) {
+                    markAllPendingAsMissed()
+                }
             }
             stopSelf()
-        }
-
-        kotlinx.coroutines.runBlocking {
-            updateNotification()
+        } else {
+            Handler(Looper.getMainLooper()).post {
+                GlobalScope.launch(Dispatchers.IO) {
+                    updateNotification()
+                }
+            }
         }
 
         return START_STICKY
