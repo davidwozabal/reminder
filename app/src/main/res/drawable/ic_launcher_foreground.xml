@@ -4,8 +4,10 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Lightning bolt -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M58,20 L38,58 L50,58 L44,88 L72,46 L58,46 Z" />
+        android:pathData="M0,0h108v108h-108z"
+        android:fillColor="#1565C0" />
+    <path
+        android:pathData="M54,18C32.9,18 15,35.9 15,57c0,21.1 17.9,39 39,39c21.1,0 39,-17.9 39,-39C93,35.9 75.1,18 54,18ZM45,75L27,57l3.5,-3.5L45,68l25.5,-25.5L74,46L45,75Z"
+        android:fillColor="#FFFFFF" />
 </vector>
